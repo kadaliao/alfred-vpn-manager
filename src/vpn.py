@@ -204,9 +204,7 @@ class Viscosity(VPNApp):
 
             data = json.loads(run_command(cmd))
 
-            for t in data.items():
-                connections.append(VPN(*t))
-
+            connections.extend(VPN(*t) for t in data.items())
         return connections
 
 
@@ -240,7 +238,7 @@ class Tunnelblick(VPNApp):
             output = wf.decode(run_command(cmd)).strip()
 
             for line in output.split('\n'):
-                active = True if line[0] == '1' else False
+                active = line[0] == '1'
                 name = line[2:]
                 connections.append(VPN(name, active))
 
@@ -260,20 +258,16 @@ def get_app():
         if cls.__name__ == name:
             app = cls()
             if not app.installed:
-                raise NotInstalled('Application "{}" is not installed'
-                                   .format(app.name))
+                raise NotInstalled(f'Application "{app.name}" is not installed')
 
             return app
 
-    raise ValueError('Unknown VPN app: ' + name)
+    raise ValueError(f'Unknown VPN app: {name}')
 
 
 def get_all_apps():
     """Return all application objects."""
-    apps = []
-    for cls in VPNApp.__subclasses__():
-        apps.append(cls())
-
+    apps = [cls() for cls in VPNApp.__subclasses__()]
     apps.sort(key=attrgetter('name'))
     return apps
 
@@ -302,8 +296,6 @@ def show_update():
 
 def do_config(query):
     """Show workflow configuration."""
-    items = []
-
     # ------------------------------------------------------
     # Update status
     title = 'Workflow Is up to Date'
@@ -312,70 +304,73 @@ def do_config(query):
         title = 'Workflow Update Available!'
         icon = ICON_UPDATE_AVAILABLE
 
-    items.append(dict(
-        title=title,
-        subtitle=u'↩ or ⇥ to install update',
-        autocomplete='workflow:update',
-        valid=False,
-        icon=icon,
-    ))
+    items = [
+        dict(
+            title=title,
+            subtitle=u'↩ or ⇥ to install update',
+            autocomplete='workflow:update',
+            valid=False,
+            icon=icon,
+        )
+    ]
 
     # ------------------------------------------------------
     # VPN apps
     for app in get_all_apps():
         if app.selected and app.installed:
-            items.append(dict(
-                title=u'{} (active)'.format(app.name),
-                subtitle=u'{} is the active application'.format(app.name),
-                icon=app.info.path,
-                icontype='fileicon',
-                valid=False,
-            ))
-        else:
-            if app.installed:
-                items.append(dict(
-                    title=u'{}'.format(app.name),
-                    subtitle=u'↩ to use {}'.format(app.name),
+            items.append(
+                dict(
+                    title=f'{app.name} (active)',
+                    subtitle=f'{app.name} is the active application',
                     icon=app.info.path,
                     icontype='fileicon',
-                    arg='app:' + app.name,
+                    valid=False,
+                )
+            )
+
+        elif app.installed:
+            items.append(
+                dict(
+                    title=f'{app.name}',
+                    subtitle=f'↩ to use {app.name}',
+                    icon=app.info.path,
+                    icontype='fileicon',
+                    arg=f'app:{app.name}',
                     valid=True,
-                ))
-            else:
-                items.append(dict(
-                    title=u'{} (not installed)'.format(app.name),
-                    subtitle=u'↩ to get {}'.format(app.name),
+                )
+            )
+
+        else:
+            items.append(
+                dict(
+                    title=f'{app.name} (not installed)',
+                    subtitle=f'↩ to get {app.name}',
                     icon=ICON_WEB,
                     arg=app.download_url,
                     valid=True,
-                ))
+                )
+            )
 
-    # ------------------------------------------------------
-    # URLs
-    items.append(dict(
+
+    items.extend((dict(
         title='Online Docs',
         subtitle='Open workflow docs in your browser',
         arg=DOCS_URL,
         valid=True,
         icon=ICON_DOCS,
-    ))
-
-    items.append(dict(
+    ), dict(
         title='Get Help',
         subtitle='Open AlfredForum.com thread in your browser',
         arg=FORUM_URL,
         valid=True,
         icon=ICON_HELP,
-    ))
-
-    items.append(dict(
+    ), dict(
         title='Report Problem',
         subtitle='Open GitHub issues in your browser',
         arg=ISSUES_URL,
         valid=True,
         icon=ICON_ISSUE,
-    ))
-
+    )))
     # ------------------------------------------------------
     # Filter and display results
     if query:
@@ -415,11 +410,7 @@ def do_list(query):
 
     active_connections = [c for c in connections if c.active]
 
-    if len(active_connections) > 0:
-        connected = True
-    else:
-        connected = False
-
+    connected = len(active_connections) > 0
     # ---------------------------------------------------------
     # Display active connections at the top if there's no query
     nouids = False
@@ -466,11 +457,7 @@ def do_list(query):
 
         # Only add UID if there are no connected VPNs
         # to ensure connected VPNs are shown first
-        if connected or nouids:
-            uid = None
-        else:
-            uid = con.name
-
+        uid = None if connected or nouids else con.name
         it = wf.add_item(
             con.name,
             u'↩ to connect',

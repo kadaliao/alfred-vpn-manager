@@ -356,12 +356,10 @@ class Response(object):
             dec = codecs.getincrementaldecoder(r.encoding)(errors='replace')
 
             for chunk in iterator:
-                data = dec.decode(chunk)
-                if data:
+                if data := dec.decode(chunk):
                     yield data
 
-            data = dec.decode(b'', final=True)
-            if data:  # pragma: no cover
+            if data := dec.decode(b'', final=True):
                 yield data
 
         def generate():
@@ -435,26 +433,27 @@ class Response(object):
         if not self.stream:  # Try sniffing response content
             # Encoding declared in document should override HTTP headers
             if self.mimetype == 'text/html':  # sniff HTML headers
-                m = re.search(r"""<meta.+charset=["']{0,1}(.+?)["'].*>""",
-                              self.content)
-                if m:
+                if m := re.search(
+                    r"""<meta.+charset=["']{0,1}(.+?)["'].*>""", self.content
+                ):
                     encoding = m.group(1)
 
             elif ((self.mimetype.startswith('application/')
                    or self.mimetype.startswith('text/'))
                   and 'xml' in self.mimetype):
-                m = re.search(r"""<?xml.+encoding=["'](.+?)["'][^>]*\?>""",
-                              self.content)
-                if m:
+                if m := re.search(
+                    r"""<?xml.+encoding=["'](.+?)["'][^>]*\?>""", self.content
+                ):
                     encoding = m.group(1)
 
         # Format defaults
-        if self.mimetype == 'application/json' and not encoding:
+        if (
+            self.mimetype == 'application/json'
+            and not encoding
+            or self.mimetype == 'application/xml'
+            and not encoding
+        ):
             # The default encoding for JSON
-            encoding = 'utf-8'
-
-        elif self.mimetype == 'application/xml' and not encoding:
-            # The default for 'application/xml'
             encoding = 'utf-8'
 
         if encoding:
@@ -528,10 +527,11 @@ def request(method, url, params=None, data=None, headers=None, cookies=None,
     opener = urllib2.build_opener(*openers)
     urllib2.install_opener(opener)
 
-    if not headers:
-        headers = CaseInsensitiveDictionary()
-    else:
-        headers = CaseInsensitiveDictionary(headers)
+    headers = (
+        CaseInsensitiveDictionary(headers)
+        if headers
+        else CaseInsensitiveDictionary()
+    )
 
     if 'user-agent' not in headers:
         headers['user-agent'] = USER_AGENT
