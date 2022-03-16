@@ -745,11 +745,7 @@ class Item(object):
 
         """
         # Attributes on <item> element
-        attr = {}
-        if self.valid:
-            attr['valid'] = 'yes'
-        else:
-            attr['valid'] = 'no'
+        attr = {'valid': 'yes' if self.valid else 'no'}
         # Allow empty string for autocomplete. This is a useful value,
         # as TABing the result will revert the query back to just the
         # keyword
@@ -758,8 +754,7 @@ class Item(object):
 
         # Optional attributes
         for name in ('uid', 'type'):
-            value = getattr(self, name, None)
-            if value:
+            if value := getattr(self, name, None):
                 attr[name] = value
 
         root = ET.Element('item', attr)
@@ -779,10 +774,7 @@ class Item(object):
 
         # Add icon if there is one
         if self.icon:
-            if self.icontype:
-                attr = dict(type=self.icontype)
-            else:
-                attr = {}
+            attr = dict(type=self.icontype) if self.icontype else {}
             ET.SubElement(root, 'icon', attr).text = self.icon
 
         if self.largetext:
@@ -1067,7 +1059,7 @@ class Workflow(object):
                 'workflow_uid',
                 'workflow_version'):
 
-            value = os.getenv('alfred_' + key, '')
+            value = os.getenv(f'alfred_{key}', '')
 
             if value:
                 if key in ('debug', 'version_build', 'theme_subtext'):
@@ -1097,10 +1089,9 @@ class Workflow(object):
 
         """
         if not self._bundleid:
-            if self.alfred_env.get('workflow_bundleid'):
-                self._bundleid = self.alfred_env.get('workflow_bundleid')
-            else:
-                self._bundleid = unicode(self.info['bundleid'], 'utf-8')
+            self._bundleid = self.alfred_env.get('workflow_bundleid') or unicode(
+                self.info['bundleid'], 'utf-8'
+            )
 
         return self._bundleid
 
@@ -1235,12 +1226,7 @@ class Workflow(object):
             unicode: full path to workflow's cache directory
 
         """
-        if self.alfred_env.get('workflow_cache'):
-            dirpath = self.alfred_env.get('workflow_cache')
-
-        else:
-            dirpath = self._default_cachedir
-
+        dirpath = self.alfred_env.get('workflow_cache') or self._default_cachedir
         return self._create(dirpath)
 
     @property
@@ -1271,12 +1257,7 @@ class Workflow(object):
             unicode: full path to workflow data directory
 
         """
-        if self.alfred_env.get('workflow_data'):
-            dirpath = self.alfred_env.get('workflow_data')
-
-        else:
-            dirpath = self._default_datadir
-
+        dirpath = self.alfred_env.get('workflow_data') or self._default_datadir
         return self._create(dirpath)
 
     @property
@@ -1324,8 +1305,8 @@ class Workflow(object):
                 if self._workflowdir:
                     break
 
-            if not self._workflowdir:
-                raise IOError("'info.plist' not found in directory tree")
+        if not self._workflowdir:
+            raise IOError("'info.plist' not found in directory tree")
 
         return self._workflowdir
 
@@ -1376,7 +1357,7 @@ class Workflow(object):
         :rtype: ``unicode``
 
         """
-        return self.cachefile('%s.log' % self.bundleid)
+        return self.cachefile(f'{self.bundleid}.log')
 
     @property
     def logger(self):
@@ -1686,7 +1667,7 @@ class Workflow(object):
         """
         serializer = manager.serializer(self.cache_serializer)
 
-        cache_path = self.cachefile('%s.%s' % (name, self.cache_serializer))
+        cache_path = self.cachefile(f'{name}.{self.cache_serializer}')
         age = self.cached_data_age(name)
 
         if (age < max_age or max_age == 0) and os.path.exists(cache_path):
@@ -1716,7 +1697,7 @@ class Workflow(object):
         """
         serializer = manager.serializer(self.cache_serializer)
 
-        cache_path = self.cachefile('%s.%s' % (name, self.cache_serializer))
+        cache_path = self.cachefile(f'{name}.{self.cache_serializer}')
 
         if data is None:
             if os.path.exists(cache_path):
@@ -1755,7 +1736,7 @@ class Workflow(object):
         :rtype: ``int``
 
         """
-        cache_path = self.cachefile('%s.%s' % (name, self.cache_serializer))
+        cache_path = self.cachefile(f'{name}.{self.cache_serializer}')
 
         if not os.path.exists(cache_path):
             return 0
@@ -1966,14 +1947,10 @@ class Workflow(object):
             # initials of the atoms
             initials = ''.join([s[0] for s in atoms if s])
 
-        if match_on & MATCH_ATOM:
-            # is `query` one of the atoms in item?
-            # similar to substring, but scores more highly, as it's
-            # a word within the item
-            if query in atoms:
-                score = 100.0 - (len(value) / len(query))
+        if match_on & MATCH_ATOM and query in atoms:
+            score = 100.0 - (len(value) / len(query))
 
-                return (score, MATCH_ATOM)
+            return (score, MATCH_ATOM)
 
         # `query` matches start (or all) of the initials of the
         # atoms, e.g. ``himym`` matches "How I Met Your Mother"
@@ -2003,8 +1980,7 @@ class Workflow(object):
         # characters in `query` are in item.
         if match_on & MATCH_ALLCHARS:
             search = self._search_for_query(query)
-            match = search(value)
-            if match:
+            if match := search(value):
                 score = 100.0 / ((1 + match.start()) *
                                  (match.end() - match.start() + 1))
 
@@ -2018,10 +1994,7 @@ class Workflow(object):
             return self._search_pattern_cache[query]
 
         # Build pattern: include all characters
-        pattern = []
-        for c in query:
-            # pattern.append('[^{0}]*{0}'.format(re.escape(c)))
-            pattern.append('.*?{0}'.format(re.escape(c)))
+        pattern = ['.*?{0}'.format(re.escape(c)) for c in query]
         pattern = ''.join(pattern)
         search = re.compile(pattern, re.IGNORECASE).search
 
@@ -2444,14 +2417,9 @@ class Workflow(object):
         output = self._call_security('find-generic-password', service,
                                      account, '-g')
 
-        # Parsing of `security` output is adapted from python-keyring
-        # by Jason R. Coombs
-        # https://pypi.python.org/pypi/keyring
-        m = re.search(
-            r'password:\s*(?:0x(?P<hex>[0-9A-F]+)\s*)?(?:"(?P<pw>.*)")?',
-            output)
-
-        if m:
+        if m := re.search(
+            r'password:\s*(?:0x(?P<hex>[0-9A-F]+)\s*)?(?:"(?P<pw>.*)")?', output
+        ):
             groups = m.groupdict()
             h = groups.get('hex')
             password = groups.get('pw')
@@ -2565,11 +2533,10 @@ class Workflow(object):
 
         # Help
         def do_help():
-            if self.help_url:
-                self.open_help()
-                return 'Opening workflow help URL in browser'
-            else:
+            if not self.help_url:
                 return 'Workflow has no help URL'
+            self.open_help()
+            return 'Opening workflow help URL in browser'
 
         def show_version():
             if self.version:
@@ -2815,7 +2782,7 @@ class Workflow(object):
         elif p.returncode == 45:  # password already exists
             raise PasswordExists()
         elif p.returncode > 0:
-            err = KeychainError('Unknown Keychain error : %s' % stdout)
+            err = KeychainError(f'Unknown Keychain error : {stdout}')
             err.retcode = p.returncode
             raise err
         return stdout.strip().decode('utf-8')
